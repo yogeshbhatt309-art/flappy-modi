@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flappy Modi vs Rahul</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body{
+  margin:0;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+  background:#111;
+  font-family:Arial;
+}
+canvas{
+  background:#000;
+  border-radius:14px;
+  box-shadow:0 15px 35px rgba(0,0,0,0.6);
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="game" width="360" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+/* IMAGES */
+const modiImg = new Image();
+const rahulImg = new Image();
+const bgImg = new Image();
+
+modiImg.src = "modi.png";
+rahulImg.src = "rahul.png";
+bgImg.src = "building.png";
+
+/* MUSIC */
+const music = new Audio("music.mp3");
+music.loop = true;
+music.volume = 0.4;
+
+/* GAME STATE */
+let frames = 0;
+let score = 0;
+let gameOver = false;
+let bgX = 0;
+
+/* PIPE SETTINGS */
+const PIPE_H = 240;
+const GAP = 180;        // medium–hard gap
+const PIPE_SPEED = 2.4;
+
+/* PLAYER */
+const bird = {
+  x:70, y:250, w:48, h:48,
+  gravity:0.45,
+  lift:-8,
+  vel:0,
+
+  draw(){
+    ctx.drawImage(modiImg,this.x,this.y,this.w,this.h);
+  },
+  update(){
+    this.vel += this.gravity;
+    this.y += this.vel;
+    if(this.y < 0 || this.y + this.h > canvas.height){
+      endGame();
+    }
+  },
+  flap(){ this.vel = this.lift; }
+};
+
+/* PIPES */
+const pipes = [];
+let gapCenter = canvas.height / 2;
+let direction = 1;             // 1 = down, -1 = up
+const ZIG_SHIFT = 45;          // zig-zag strength
+
+function createPipe(){
+  direction *= -1;
+  gapCenter += direction * ZIG_SHIFT;
+
+  const minCenter = 140;
+  const maxCenter = canvas.height - 140;
+
+  if(gapCenter < minCenter) gapCenter = minCenter;
+  if(gapCenter > maxCenter) gapCenter = maxCenter;
+
+  const topPipeBottom = gapCenter - GAP / 2;
+  const bottomPipeTop = gapCenter + GAP / 2;
+
+  pipes.push({
+    x: canvas.width,
+    topEnd: topPipeBottom,
+    bottomStart: bottomPipeTop,
+    w: 70,
+    passed:false
+  });
+}
+
+/* BACKGROUND */
+function drawBackground(){
+  ctx.drawImage(bgImg,bgX,0,canvas.width,canvas.height);
+  ctx.drawImage(bgImg,bgX+canvas.width,0,canvas.width,canvas.height);
+  bgX -= 0.6;
+  if(bgX <= -canvas.width) bgX = 0;
+}
+
+/* DRAW PIPES */
+function drawPipes(){
+  pipes.forEach(p=>{
+    // top pipe
+    ctx.save();
+    ctx.translate(p.x + p.w/2, p.topEnd);
+    ctx.scale(1,-1);
+    ctx.drawImage(rahulImg,-p.w/2,0,p.w,PIPE_H);
+    ctx.restore();
+
+    // bottom pipe
+    ctx.drawImage(
+      rahulImg,
+      p.x,
+      p.bottomStart,
+      p.w,
+      PIPE_H
+    );
+  });
+}
+
+/* UPDATE PIPES */
+function updatePipes(){
+  pipes.forEach(p=>{
+    p.x -= PIPE_SPEED;
+
+    if(!p.passed && p.x + p.w < bird.x){
+      p.passed = true;
+      score++;
+    }
+
+    if(
+      bird.x < p.x + p.w &&
+      bird.x + bird.w > p.x &&
+      (bird.y < p.topEnd || bird.y + bird.h > p.bottomStart)
+    ){
+      endGame();
+    }
+  });
+
+  if(pipes.length && pipes[0].x < -120) pipes.shift();
+  if(frames % 100 === 0) createPipe();
+}
+
+/* SCORE */
+function drawScore(){
+  ctx.fillStyle="#fff";
+  ctx.font="30px Arial";
+  ctx.fillText(score, canvas.width/2 - 10, 50);
+}
+
+/* GAME OVER */
+function endGame(){
+  if(!gameOver){
+    gameOver = true;
+    music.pause();
+  }
+}
+
+function drawGameOver(){
+  ctx.fillStyle="rgba(0,0,0,0.65)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#fff";
+  ctx.font="32px Arial";
+  ctx.fillText("Game Over",90,260);
+  ctx.font="20px Arial";
+  ctx.fillText("Click / Space to Restart",60,310);
+}
+
+/* LOOP */
+function loop(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawBackground();
+
+  if(!gameOver){
+    bird.update();
+    updatePipes();
+    drawPipes();
+    bird.draw();
+    drawScore();
+    frames++;
+  }else{
+    drawGameOver();
+  }
+
+  requestAnimationFrame(loop);
+}
+
+/* CONTROLS */
+canvas.addEventListener("click",()=>{
+  music.play();
+  if(gameOver){
+    frames=0;
+    score=0;
+    pipes.length=0;
+    bird.y=250;
+    bird.vel=0;
+    gapCenter = canvas.height/2;
+    gameOver=false;
+    bgX=0;
+  }else{
+    bird.flap();
+  }
+});
+
+document.addEventListener("keydown",e=>{
+  if(e.code==="Space"){
+    music.play();
+    if(gameOver){
+      frames=0;
+      score=0;
+      pipes.length=0;
+      bird.y=250;
+      bird.vel=0;
+      gapCenter = canvas.height/2;
+      gameOver=false;
+      bgX=0;
+    }else{
+      bird.flap();
+    }
+  }
+});
+
+/* START */
+let loaded=0;
+function start(){ loaded++; if(loaded===3) loop(); }
+modiImg.onload=start;
+rahulImg.onload=start;
+bgImg.onload=start;
+</script>
+
+</body>
+</html>
